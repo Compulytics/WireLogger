@@ -1,30 +1,40 @@
-$URL = "https://www.wireclub.com/chat/room/philosophy"
-$DataPattern = '<div class="message clearfix".*?</span>'
-$NamePattern = '(?<=\>)\s*(.*) </a'
-$MessagePattern = ";'>(.*?)</"
-$TimeStampPattern = 'data-timestamp=(.*?)>'
-While ($True){
-	try {
-		$HTTPRequest = Invoke-WebRequest -Uri $URL
-		$RawData = $HTTPRequest.Content
-	} catch {
-		Write-Host "Failed to retrieve the chat."
-		exit
-	}
-	$Matches = [regex]::Matches($RawData, $DataPattern)
-	foreach ($Match in $Matches) {
-		$TimeStamp = [regex]::Matches($Match.Value, $TimeStampPattern).Groups[1].Value -replace '"', ""
-		$NameDirty = [regex]::Matches($Match.Value, $NamePattern).Value
-		$Pointer = $NameDirty.LastIndexOf('>')
-		$Name = $NameDirty.Substring($Pointer + 1) -replace ' </a',''
-		$MessageDirty = [regex]::Matches($Match.Value, $MessagePattern).Groups[1].Value -replace ";'>", ""
-		$MessageHTML = $MessageDirty -replace "</",""
-		$Message = [System.Web.HttpUtility]::HtmlDecode($MessageHTML)
-		if ($TimeStamp -gt $LastTimeStamp){
-			Write-Host "$TimeStamp~$Name`: $Message"
-			Add-Content -Path C:\Users\user\Desktop\Philosophy.csv "$Timestamp,$Name,$Message"
-		}
-	}
-	$LastTimeStamp = $TimeStamp
-	sleep 15
+Import-Module Selenium
+$WebDriver = Start-SeEdge
+Enter-SeUrl https://wireclub.com/chat/room/philosophy -Driver $WebDriver
+$MD5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
+$UTF8 = New-Object -TypeName System.Text.UTF8Encoding
+$MessageHashes = @{}
+$i = 0
+while($True){
+    $Element = $WebDriver.FindElements([OpenQA.Selenium.By]::XPath("/html/body/div[3]/div[2]/div[2]/div/table/tbody/tr/td[1]/div/div"))
+    foreach($RawMessage in $Element){
+        $TimeStamp = [string](Get-Date -UFormat %s -Millisecond 0)
+        $UserAndMessage = $RawMessage.Text -split "`n"
+        $MessageContent = "$($UserAndMessage[0]) $($UserAndMessage[1])"
+        $MessageID = [System.BitConverter]::ToString($MD5.ComputeHash($UTF8.GetBytes($MessageContent)))
+        if(-not $MessageHashes.ContainsKey($MessageID)){
+            if($UserAndMessage[0] -ne ""){
+                Write-Host "MessageID:" $MessageID
+                Write-Host "TimeStamp: "$TimeStamp
+                Write-Host "User: "$UserAndMessage[0]
+                Write-Host "Message: "$UserAndMessage[1]
+                Write-Host "-------------------------------------------------------------------------------"
+                $CSVFormattedLine = '"{0}","{1}","{2}"' -f $TimeStamp, $UserAndMessage[0], $UserAndMessage[1]
+                Add-Content -Path "C:\Users\$Env:UserName\Desktop\Philosophy.csv" -Value $CSVFormattedLine
+                $MessageHashes.Add($MessageID, $TimeStamp)
+            }
+        }
+    }
+    Start-Sleep -Seconds 1
+    $i += 1
+    if($i -gt 7200){
+        $i = 0
+        $EarliestTime = [string](Get-Date -UFormat %s) - 3600
+        foreach($MessageHashTime in $MessageHashes.Keys){
+            if($MessageHashTime -lt $EarliestTime){
+                $MessageHashes.Remove($MessageHashTime)
+            }
+        }
+		Enter-SeUrl https://wireclub.com/chat/room/philosophy -Driver $WebDriver
+    }
 }
