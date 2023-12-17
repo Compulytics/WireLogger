@@ -27,9 +27,9 @@ while($True){
     }
     Start-Sleep -Seconds 1
     $i += 1
-    if($i -gt 7200){
+    if($i -gt 1776){
         $i = 0
-        $EarliestTime = [string](Get-Date -UFormat %s) - 3600
+        $EarliestTime = [string](Get-Date -UFormat %s) - 888
         foreach($MessageHashTime in $MessageHashes.Keys){
             if($MessageHashTime -lt $EarliestTime){
                 $MessageHashes.Remove($MessageHashTime)
