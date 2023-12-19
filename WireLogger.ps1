@@ -5,6 +5,8 @@ $MD5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvide
 $UTF8 = New-Object -TypeName System.Text.UTF8Encoding
 $MessageHashes = @{}
 $i = 0
+$NewMessageFound = $False
+$NoNewMessageCount = 0
 while($True){
     $Element = $WebDriver.FindElements([OpenQA.Selenium.By]::XPath("/html/body/div[3]/div[2]/div[2]/div/table/tbody/tr/td[1]/div/div"))
     foreach($RawMessage in $Element){
@@ -14,6 +16,7 @@ while($True){
         $MessageID = [System.BitConverter]::ToString($MD5.ComputeHash($UTF8.GetBytes($MessageContent)))
         if(-not $MessageHashes.ContainsKey($MessageID)){
             if($UserAndMessage[0] -ne ""){
+				$NewMessageFound = $True
                 Write-Host "MessageID:" $MessageID
                 Write-Host "TimeStamp: "$TimeStamp
                 Write-Host "User: "$UserAndMessage[0]
@@ -25,6 +28,14 @@ while($True){
             }
         }
     }
+	if(!($NewMessageFound)){
+		$NoNewMessageCount += 1
+	}
+	if($NoNewMessageCount -gt 90){
+		Enter-SeUrl https://wireclub.com/chat/room/philosophy -Driver $WebDriver
+		$NoNewMessageCount = 0
+	}
+	$NewMessageFound = $False
     Start-Sleep -Seconds 1
     $i += 1
     if($i -gt 1776){
